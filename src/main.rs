@@ -145,7 +145,7 @@ fn main() {
 
         let mut g = Polynomial::new(vec![one.clone()], &gf16);
 
-        for i in conj_idx{
+        for i in &conj_idx{
             let root = gf16.create_element(1<< i);
             let term = Polynomial::new(vec![one.clone(),root], &gf16);
             // println!("Term: ({})",term.to_str());
@@ -153,6 +153,32 @@ fn main() {
 
         }
         println!("g(x) = {}",g.to_str());
+        let deg_g = &conj_idx.len();
+        println!("Deg(g(x)) = {}",deg_g);
+
+        // Prepare Message - k bits
+        // k = n - deg(g(x))
+
+        // TODO - Map user input to GF elements
+        //      - Preprocess - lowercase,whitespace,other symbols
+        //      - Map each char(using ASCII) into a GF
+        //      - Block message into k bits chunks
+        //      - Optional : File input
+
+        // demo message
+        let messg: Vec<Element> = vec![gf16.create_element(1);5];
+
+        let m = Polynomial::new(messg, &gf16);
+
+        println!("Message : {}",m.to_str());
+
+        let codeword = g.multiply(&m);
+
+        println!("Codeword Generated, C = {}",codeword.to_str());
+
+
+
+
 
 
 
