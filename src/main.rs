@@ -48,6 +48,8 @@ fn main() {
 
         let gf16 = FiniteField::new(2, 4, IRR_POLY); // x^4 + x + 1
         let zero = gf16.create_element(0);
+        let one = gf16.create_element(1);
+        let alpha = gf16.create_element(2);
 
         let a = gf16.create_element(5);
 
@@ -81,44 +83,36 @@ fn main() {
 
         // let's find conjugates
 
-        let t = 3; // err correcting capability
+        let t: i32 = 3; // err correcting capability
+        let end = 2*t -1 ;
+
+        println!("Err Correcting Capability = {}",t);
+        
 
         // initialize the min. poly 1
 
         // TODO - Generating individual min. poly and then find generator poly using LCM
 
-        let phi1 = Polynomial::new(vec![zero.clone()], &gf16);
-        println!("{}", phi1.to_str());
+        let zero_poly = Polynomial::new(vec![zero.clone()], &gf16);
+        let one_poly = Polynomial::new(vec![one.clone()], &gf16);
+ 
+        // Initialize vec of all minimal polymonial
+        let mut phi: Vec<Polynomial<'_>> = vec![one_poly; t as usize];
 
-        // find conjugate of a = a^2, a^4, a^8
+        for i in (0..t){
+            println!("Phi_{}(x) = {:?}",2*i+1, phi[i as usize].to_str());
+        }
 
-        // let mut conj_phi1 = Vec::new();
+        // Note all the conjugates of the min. poly in a set
 
-        // let alpha = gf16.create_element(8); // 2 = 0010 = a
+        let mut conj_idx:HashSet<u32>  = HashSet::new();
+        
 
-        // conj_phi1.push(&alpha);
+        for i in (0..t){
 
-        let a = gf16.create_element(0b0001_0011);
-        let b = gf16.create_element(51);
-        let c = gf16.create_element(0b0001_0000_0000);
+            let mut pw: u32 = (2*i + 1) as u32;
 
-
-        println!("reduce a: {} = {}",a.to_poly_str(),a.reduce().to_poly_str());
-        println!("reduce b: {} = {}",b.to_poly_str(),b.reduce().to_poly_str());
-        println!("reduce c: {} = {}",c.to_poly_str(),c.reduce().to_poly_str());
-
-
-
-        // Note all the conjugates of the min. poly in a set : 
-
-        let mut conj_idx:HashSet<i32>  = HashSet::new();
-        let end = 2*t -1 ;
-
-        for i in (1..=end).step_by(2){
-
-            let mut pw = i;
-
-            println!("Conjugates of a^{} = {} = {}",pw, gf16.create_element(1 << pw).to_poly_str(), gf16.create_element(1 << pw).reduce().to_poly_str());
+            println!("\nConjugates of {} = {}",gf16.create_element(1 << pw).to_poly_str(), gf16.create_element(1 << pw).reduce().to_poly_str());
 
             loop {
                 pw *= 2;
@@ -128,11 +122,46 @@ fn main() {
                     break;
                 }
                 conj_idx.insert(pw);
-                print!("{} = {} ",gf16.create_element(1 << pw).to_poly_str(),gf16.create_element(1 << pw).reduce().to_poly_str());
+                print!("{} = {} ,",gf16.create_element(1 << pw).to_poly_str(),gf16.create_element(1 << pw).reduce().to_poly_str());
+
+                let root = gf16.create_element(1 << pw).reduce();
+                let term = Polynomial::new(vec![one.clone(),root], &gf16);
+     
+
+                phi[i as usize] = phi[i as usize].multiply(&term);
+        
             }
+
+            
             println!();
+            println!("\nMinimal Polynomial Phi_{}(x) = {}",2*i+1,phi[i as usize].to_str());
 
         }
+
+
+        println!("all the conjugates: {:?}",conj_idx);
+        println!();
+        println!("Generator Poly: LCM of [phi_1, phi_3, phi_5]");
+
+        let mut g = Polynomial::new(vec![one.clone()], &gf16);
+
+        for i in conj_idx{
+            let root = gf16.create_element(1<< i);
+            let term = Polynomial::new(vec![one.clone(),root], &gf16);
+            // println!("Term: ({})",term.to_str());
+            g = g.multiply(&term);
+
+        }
+        println!("g(x) = {}",g.to_str());
+
+
+
+        
+
+
+        println!()
+
+
 
         
 
