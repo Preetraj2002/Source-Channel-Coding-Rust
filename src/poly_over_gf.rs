@@ -201,8 +201,6 @@ impl<'gf> Polynomial<'gf> {
             println!("term : {}", term.to_poly_str());
 
             result = result.add(&term);
-
-            println!("res: {}", result.to_poly_str());
         }
         result
     }
@@ -228,7 +226,7 @@ impl<'gf> Polynomial<'gf> {
                 .unwrap_or_else(|| element_zero(&self.field));
 
             res[i] = a.add(&b);
-            println!("res x^{} = {:?}", i, &res[i]);
+            // println!("res x^{} = {:?}", i, &res[i]);
         }
 
         return Polynomial::new(res, &self.field);
@@ -245,6 +243,7 @@ impl<'gf> Polynomial<'gf> {
                     str.push_str(&ele.to_poly_str());
                 } else if i == 1 {
                     str.push_str(&format!("({})x", &ele.to_poly_str()));
+
                 } else {
                     str.push_str(&format!("({})x^{}", &ele.to_poly_str(), i));
                 }
@@ -267,20 +266,15 @@ impl<'gf> Polynomial<'gf> {
         // Perform polynomial multiplication
         for (i, coeff_a) in self.coefficients.iter().enumerate() {
             for (j, coeff_b) in other.coefficients.iter().enumerate() {
-                let product = coeff_a.multiply(coeff_b);
+               let product = coeff_a.multiply(coeff_b);
                 result_coeffs[i + j] = result_coeffs[i + j].add(&product);
-            }
+            }   
         }
-
+        result_coeffs.reverse();
         Polynomial::new(result_coeffs, self.field)
     }
 }
 
-// // Polynomial represented by its coefficients, e.g., [1, 1] represents x + a
-// #[derive(Debug, Clone)]
-// struct Polynomial {
-//     coef: Vec<Element>,
-// }
 
 fn main() {
     // Define GF(2^4)
