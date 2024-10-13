@@ -4,6 +4,7 @@ use std::collections::HashSet;
 use std::io;
 
 mod poly_over_gf;
+use poly_over_gf::determinant;
 use poly_over_gf::Element;
 use poly_over_gf::FiniteField;
 use poly_over_gf::Polynomial;
@@ -84,10 +85,9 @@ fn main() {
         // let's find conjugates
 
         let t: i32 = 3; // err correcting capability
-        let end = 2*t -1 ;
+        let end = 2 * t - 1;
 
-        println!("Err Correcting Capability = {}",t);
-        
+        println!("Err Correcting Capability = {}", t);
 
         // initialize the min. poly 1
 
@@ -95,24 +95,26 @@ fn main() {
 
         let zero_poly = Polynomial::new(vec![zero.clone()], &gf16);
         let one_poly = Polynomial::new(vec![one.clone()], &gf16);
- 
+
         // Initialize vec of all minimal polymonial
         let mut phi: Vec<Polynomial<'_>> = vec![one_poly; t as usize];
 
-        for i in (0..t){
-            println!("Phi_{}(x) = {:?}",2*i+1, phi[i as usize].to_str());
+        for i in (0..t) {
+            println!("Phi_{}(x) = {:?}", 2 * i + 1, phi[i as usize].to_str());
         }
 
         // Note all the conjugates of the min. poly in a set
 
-        let mut conj_idx:HashSet<u32>  = HashSet::new();
-        
+        let mut conj_idx: HashSet<u32> = HashSet::new();
 
-        for i in (0..t){
+        for i in (0..t) {
+            let mut pw: u32 = (2 * i + 1) as u32;
 
-            let mut pw: u32 = (2*i + 1) as u32;
-
-            println!("\nConjugates of {} = {}",gf16.create_element(1 << pw).to_poly_str(), gf16.create_element(1 << pw).reduce().to_poly_str());
+            println!(
+                "\nConjugates of {} = {}",
+                gf16.create_element(1 << pw).to_poly_str(),
+                gf16.create_element(1 << pw).reduce().to_poly_str()
+            );
 
             loop {
                 pw *= 2;
@@ -122,39 +124,41 @@ fn main() {
                     break;
                 }
                 conj_idx.insert(pw);
-                print!("{} = {} ,",gf16.create_element(1 << pw).to_poly_str(),gf16.create_element(1 << pw).reduce().to_poly_str());
+                print!(
+                    "{} = {} ,",
+                    gf16.create_element(1 << pw).to_poly_str(),
+                    gf16.create_element(1 << pw).reduce().to_poly_str()
+                );
 
                 let root = gf16.create_element(1 << pw).reduce();
-                let term = Polynomial::new(vec![one.clone(),root], &gf16);
-     
+                let term = Polynomial::new(vec![one.clone(), root], &gf16);
 
                 phi[i as usize] = phi[i as usize].multiply(&term);
-        
             }
 
-            
             println!();
-            println!("\nMinimal Polynomial Phi_{}(x) = {}",2*i+1,phi[i as usize].to_str());
-
+            println!(
+                "\nMinimal Polynomial Phi_{}(x) = {}",
+                2 * i + 1,
+                phi[i as usize].to_str()
+            );
         }
 
-
-        println!("all the conjugates: {:?}",conj_idx);
+        println!("all the conjugates: {:?}", conj_idx);
         println!();
         println!("Generator Poly: LCM of [phi_1, phi_3, phi_5]");
 
         let mut g = Polynomial::new(vec![one.clone()], &gf16);
 
-        for i in &conj_idx{
-            let root = gf16.create_element(1<< i);
-            let term = Polynomial::new(vec![one.clone(),root], &gf16);
+        for i in &conj_idx {
+            let root = gf16.create_element(1 << i);
+            let term = Polynomial::new(vec![one.clone(), root], &gf16);
             // println!("Term: ({})",term.to_str());
             g = g.multiply(&term);
-
         }
-        println!("g(x) = {}",g.to_str());
+        println!("g(x) = {}", g.to_str());
         let deg_g = &conj_idx.len();
-        println!("Deg(g(x)) = {}",deg_g);
+        println!("Deg(g(x)) = {}", deg_g);
 
         // Prepare Message - k bits
         // k = n - deg(g(x))
@@ -166,109 +170,114 @@ fn main() {
         //      - Optional : File input
 
         // demo message
-        let messg: Vec<Element> = vec![gf16.create_element(1);5];
+        let messg: Vec<Element> = vec![gf16.create_element(1); 5];
 
         let m = Polynomial::new(messg, &gf16);
 
-        println!("Message : {}",m.to_str());
+        println!("Message : {}", m.to_str());
 
         let codeword = g.multiply(&m);
 
-        println!("Codeword Generated, C = {}",codeword.to_str());
-
+        println!("Codeword Generated, C = {}", codeword.to_str());
 
         // Add err
 
-        let mut errv: Vec<Element> = vec![gf16.create_element(0);5];
-        errv[2] = errv[2].add(&one);
-        errv[4] = errv[4].add(&one);
+        let mut errv: Vec<Element> = vec![gf16.create_element(0); 5];
+        errv[0] = errv[0].add(&one);
+        // errv[2] = errv[2].add(&one);
+        errv.reverse();
 
         let e = Polynomial::new(errv, &gf16);
-        let recv = codeword.add(&e);
+        // let recv = codeword.add(&e);
+        let recv = Polynomial::new(
+            vec![
+                one.clone(),
+                zero.clone(),
+                one.clone(),
+                zero.clone(),
+                zero.clone(),
+                zero.clone(),
+            ],
+            &gf16,
+        );
 
-        println!("Err Induced: {}",e.to_str());
+        println!("Err Induced: {}", e.to_str());
         println!("Received Codeword: {}", recv.to_str());
-
 
         // Decoding
 
         // Syndrome Calculation - Evaluate Revc Poly at a^j
 
-        let mut s:Vec<Element> = vec![zero.clone();2*t as usize];
+        let mut s: Vec<Element> = vec![zero.clone(); 2 * t as usize];
 
         // j -> [1..2t]
 
-        for j in 0..2*t
-        {
-            let point = gf16.create_element(1 << (j+1));
+        for j in 0..2 * t {
+            let point = gf16.create_element(1 << (j + 1));
 
             s[j as usize] = recv.evaluate(&point);
 
-            println!("S{} = r({})\t= {}",j+1,point.to_poly_str(),s[j as usize].to_poly_str());
+            println!(
+                "S{} = r({})\t= {}",
+                j + 1,
+                point.to_poly_str(),
+                s[j as usize].to_poly_str()
+            );
         }
-     
 
-        let l: usize = t as usize;  // Assume no. of errors
+        let mut l: usize = t as usize; // Assume no. of errors
 
         // Construct M matrix with syndromes s
 
-        let mut mat_m = vec![vec![&zero; l as usize];l as usize];
+        let mut mat_m = vec![vec![&zero; l as usize]; l as usize];
         println!("Constructing syndrome matrix, M: ");
 
         for i in 0..l {
-            for j in 0..l{
+            for j in 0..l {
                 // print!("{}\t",(i+j));
-                mat_m[i][j] = &s[i+j];
-                print!("{}\t",mat_m[i][j].to_poly_str());
-
+                mat_m[i][j] = &s[i + j];
+                print!("{}\t\t", mat_m[i][j].to_poly_str());
             }
             println!();
         }
 
+        // det(M)
+
+        let det = determinant(mat_m, l, &gf16);
+
+        println!("Det(M[{}x{}]) = {}", l, l, det.to_poly_str());
+
+        if det == zero {
+            l -= 1;
+        }
+
+        let mut mat_m = vec![vec![&zero; l as usize]; l as usize];
+        println!("Constructing syndrome matrix, M: ");
+
+        for i in 0..l {
+            for j in 0..l {
+                // print!("{}\t",(i+j));
+                mat_m[i][j] = &s[i + j];
+                print!("{}\t\t", mat_m[i][j].to_poly_str());
+            }
+            println!();
+        }
 
         // det(M)
 
-        
+        let det = determinant(mat_m, l, &gf16);
 
+        println!("Det(M[{}x{}]) = {}", l, l, det.to_poly_str());
 
+        // inverse m
 
-        
+        // get lambda as coeff of err locator function
 
+        // Construct Err locator function
 
-
-
-
-
-
-
-
-        // Err locator function
-
-
-        // Syndrone Matrix
-
-        // Linear equation solving
-
-
-
-
-
-
-
-
-
-
-
-
-
-        
-
+        // Find roots of err locator function
 
         println!()
-
-
-
-        
 
         // TODO - implement BCH code
     }
