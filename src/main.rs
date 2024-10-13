@@ -177,6 +177,85 @@ fn main() {
         println!("Codeword Generated, C = {}",codeword.to_str());
 
 
+        // Add err
+
+        let mut errv: Vec<Element> = vec![gf16.create_element(0);5];
+        errv[2] = errv[2].add(&one);
+        errv[4] = errv[4].add(&one);
+
+        let e = Polynomial::new(errv, &gf16);
+        let recv = codeword.add(&e);
+
+        println!("Err Induced: {}",e.to_str());
+        println!("Received Codeword: {}", recv.to_str());
+
+
+        // Decoding
+
+        // Syndrome Calculation - Evaluate Revc Poly at a^j
+
+        let mut s:Vec<Element> = vec![zero.clone();2*t as usize];
+
+        // j -> [1..2t]
+
+        for j in 0..2*t
+        {
+            let point = gf16.create_element(1 << (j+1));
+
+            s[j as usize] = recv.evaluate(&point);
+
+            println!("S{} = r({})\t= {}",j+1,point.to_poly_str(),s[j as usize].to_poly_str());
+        }
+     
+
+        let l: usize = t as usize;  // Assume no. of errors
+
+        // Construct M matrix with syndromes s
+
+        let mut mat_m = vec![vec![&zero; l as usize];l as usize];
+        println!("Constructing syndrome matrix, M: ");
+
+        for i in 0..l {
+            for j in 0..l{
+                // print!("{}\t",(i+j));
+                mat_m[i][j] = &s[i+j];
+                print!("{}\t",mat_m[i][j].to_poly_str());
+
+            }
+            println!();
+        }
+
+
+        // det(M)
+
+        
+
+
+
+        
+
+
+
+
+
+
+
+
+
+        // Err locator function
+
+
+        // Syndrone Matrix
+
+        // Linear equation solving
+
+
+
+
+
+
+
+
 
 
 
