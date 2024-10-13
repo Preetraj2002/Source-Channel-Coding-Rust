@@ -137,6 +137,8 @@ impl Element {
         res
     }
 
+    // TODO - write divide function
+
     // Print as a polynomial form for human-readable output
     pub fn to_poly_str(&self) -> String {
         let mut poly = String::new();
@@ -179,6 +181,50 @@ impl Element {
 pub fn element_zero(field: &FiniteField) -> Element {
     field.create_element(0)
 }
+
+// Recursive function to calculate determinant of a matrix of polynomials
+pub fn determinant(matrix: Vec<Vec<&Element>>, n: usize, field: &FiniteField) -> Element {
+    let zero = field.create_element(0);
+    let mut det = zero.clone();
+
+    // Base case: single element
+    if (n == 1) {
+        det = matrix[0][0].clone();
+        return det;
+    }
+
+    for p in 0..n {
+        // Create submatrix for cofactor expansion
+
+        let mut submatrix: Vec<Vec<&Element>> = vec![vec![&zero; n - 1]; n - 1];
+
+        for i in 1..n {
+            let mut col_index = 0;
+
+            for j in 0..n {
+                if j == p {
+                    continue;
+                }
+
+                submatrix[i - 1][col_index] = matrix[i][j];
+                col_index += 1;
+            }
+        }
+
+        let mut cofactor = &matrix[0][p].multiply(&determinant(submatrix, n - 1, field));
+
+        // print!("{} + ",cofactor.to_poly_str());
+
+
+        det = det.add(cofactor);
+
+        
+    }
+    // println!("val {} at n ={} ",det.to_poly_str(),n);
+    return det;
+}
+
+// TODO - Write inverse matrix function
 
 #[derive(Debug, Clone)]
 pub struct Polynomial<'gf> {
