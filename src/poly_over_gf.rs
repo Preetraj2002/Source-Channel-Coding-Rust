@@ -116,16 +116,21 @@ impl Element {
     }
 
     pub fn power(&self, exp: usize) -> Element {
-        let mut res = self.field.create_element(0);
+        let mut res = self.field.create_element(1);
         let mut pow = exp;
         let mut base = self.clone();
 
+        if pow == 0{
+            res = self.field.create_element(1);
+            return res;
+        }
+
         while pow > 0 {
-            if pow == 1 {
-                res = res.add(&base);
+            if pow % 2 == 1 {
+                res = res.multiply(&base);
             }
 
-            base = base.multiply(&base); // sqaure the base
+            base = base.multiply(&base); // square the base
             pow /= 2;
         }
 
@@ -195,10 +200,9 @@ impl<'gf> Polynomial<'gf> {
         let mut result = element.field.create_element(0); // Start with 0 in the field
 
         for (i, coeff) in self.coefficients.iter().enumerate() {
-            println!("{} {}", i, coeff.to_poly_str());
 
-            let term = coeff.power(i + 1);
-            println!("term : {}", term.to_poly_str());
+            let term = coeff.multiply(&element.power(i));
+            // println!("term : {}*({})^{} =  {}",coeff.to_poly_str(),element.to_poly_str(),i, term.to_poly_str());
 
             result = result.add(&term);
         }
