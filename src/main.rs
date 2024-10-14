@@ -2,6 +2,7 @@
 
 use std::collections::HashSet;
 use std::io;
+use std::vec;
 
 mod poly_over_gf;
 use poly_over_gf::determinant;
@@ -265,19 +266,129 @@ fn main() {
 
         // det(M)
 
-        let det = determinant(mat_m, l, &gf16);
+        let det = determinant(mat_m.clone(), l, &gf16);
 
         println!("Det(M[{}x{}]) = {}", l, l, det.to_poly_str());
 
         // inverse m
 
+        println!("Inverse of M : ");
+
+        let temp = mat_m[0][0].clone();
+        mat_m[0][0] = mat_m[1][1];
+
+        mat_m[1][1] = &temp;
+
+
+        for i in 0..l {
+            for j in 0..l {
+                print!("{}\t\t", mat_m[i][j].to_poly_str());
+            }
+            println!();
+        }
+
+        // construct S = [s_l+1 s_l+2 s_l+3 ... s_2l]^T
+
+        let mut s1 = vec![&zero;2*l];
+
+        print!("S : ");
+
+        for i in 0..l{
+            s1[i] = &s[l+i];
+            print!("{}\t",s1[i].to_poly_str());
+        }
+
+        println!();
+        
+        
+
+
+
+
         // get lambda as coeff of err locator function
+
+
+        let mut lambda = vec![zero.clone();l];
+
+        // Multiply M_inv * S
+
+        println!("Lambda Values: ");
+
+        for i in 0..l{
+            for j in 0..l{
+                lambda[i] = lambda[i].add(&mat_m[i][j].multiply(s1[j]));
+            }
+            println!("lambda{} = {}",l-i,lambda[i].to_poly_str());
+            // Note indexing of Lambda -> [l,l-1 ... 1]
+        }
+
+        println!();
 
         // Construct Err locator function
 
+        lambda.push(one.clone());   // add one as const term coeff.
+
+        let mut lambda_poly = Polynomial::new(lambda, &gf16);
+
+        println!("Lambda(x) = {}",lambda_poly.to_str());
+
+
         // Find roots of err locator function
 
-        println!()
+        // Do hit and trial method to find all the roots
+
+        // TODO - Note range and write func to generate all field elements
+
+        let mut roots: Vec<Element> = Vec::new();
+        for i in 0..15
+        {
+            let mut point = gf16.create_element(1 << i);
+            let mut val = lambda_poly.evaluate(&point);
+            
+
+            if val == zero{
+                println!("Root found : {}",point.to_poly_str());
+                roots.push(point);
+
+            }
+        }
+
+        let mut e = zero_poly.clone();
+
+        // Invert the roots to find the err location number
+        print!("Err Location = ");
+        for root in roots{
+
+            let mut term = root.inverse();
+            print!("{}, ",term.0.to_poly_str());
+
+            // term.1 : all power of the inverse element
+            // use this to convert a^i => x^i e.g. a^3 = x^3
+
+            let mut err = Polynomial::new(vec![zero.clone();term.1+1], &gf16);
+            err.coefficients[term.1] = one.clone();
+
+
+            e.add_assign(&err);
+
+        }
+        println!();
+
+        // Construct the err poly\
+
+        println!("Err Poly : {}",e.to_str());
+
+        println!("Corrected Codeword: ");
+        let cw = recv.add(&e);
+        println!("c(x) = {}",cw.to_str());
+
+
+      
+
+        // Add error locator poly with received codeword
+
+
+
 
         // TODO - implement BCH code
     }
