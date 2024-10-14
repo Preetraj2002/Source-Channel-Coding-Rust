@@ -137,6 +137,28 @@ impl Element {
         res
     }
 
+    pub fn inverse(&self) -> (Element, usize) {
+        let zero = self.field.create_element(0);
+        let one = self.field.create_element(1);
+        let mut inv = zero.clone();
+        let mut pw = 0;
+
+
+        for i in 0..self.field.size - 1{
+
+            inv = self.field.create_element(1 << i);
+            pw = i as usize;
+
+            if self.multiply(&inv) == one.clone(){
+                // println!("{}",inv.to_poly_str());
+                return (inv,pw);
+            }
+        }
+
+        // if self == &zero
+        return (inv,pw);
+    }
+
     // TODO - write divide function
 
     // Print as a polynomial form for human-readable output
@@ -280,6 +302,24 @@ impl<'gf> Polynomial<'gf> {
         }
 
         return Polynomial::new(res, &self.field);
+    }
+
+    pub fn add_assign(&mut self, other: &Polynomial<'gf>) {
+        let max_len = self.coefficients.len().max(other.coefficients.len());
+        
+        // Resize the coefficients vector if necessary
+        if self.coefficients.len() < max_len {
+            self.coefficients.resize(max_len, self.field.create_element(0));
+        }
+
+        for i in 0..max_len {
+            let a = self.coefficients.get(i).cloned().unwrap_or_else(|| element_zero(&self.field));
+            let b = other.coefficients.get(i).cloned().unwrap_or_else(|| element_zero(&other.field));
+
+            self.coefficients[i] = a.add(&b);
+            // Optionally print out the result for debugging
+            // println!("After adding, res x^{} = {:?}", i, &self.coefficients[i]);
+        }
     }
 
     pub fn to_str(&self) -> String {
