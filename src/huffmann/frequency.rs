@@ -66,4 +66,88 @@ mod tests {
         let expected: HashMap<char, u32> = HashMap::new();
         assert_eq!(result, expected);
     }
+    #[test]
+    fn test_merge_map_with_overlapping_keys() {
+        let mut map1 = HashMap::new();
+        map1.insert('a', 1);
+        map1.insert('b', 2);
+
+        let mut map2 = HashMap::new();
+        map2.insert('b', 3);
+        map2.insert('c', 4);
+
+        merge_map(&mut map1, &map2);
+
+        let mut expected = HashMap::new();
+        expected.insert('a', 1);
+        expected.insert('b', 3); // Value from map2 should overwrite the value from map1
+        expected.insert('c', 4);
+
+        assert_eq!(map1, expected);
+    }
+
+    #[test]
+    fn test_merge_map_with_non_overlapping_keys() {
+        let mut map1 = HashMap::new();
+        map1.insert('x', 10);
+        map1.insert('y', 20);
+
+        let mut map2 = HashMap::new();
+        map2.insert('z', 30);
+        map2.insert('w', 40);
+
+        merge_map(&mut map1, &map2);
+
+        let mut expected = HashMap::new();
+        expected.insert('x', 10);
+        expected.insert('y', 20);
+        expected.insert('z', 30);
+        expected.insert('w', 40);
+
+        assert_eq!(map1, expected);
+    }
+
+    #[test]
+    fn test_merge_map_with_empty_map2() {
+        let mut map1 = HashMap::new();
+        map1.insert('a', 1);
+        map1.insert('b', 2);
+
+        let map2 = HashMap::new(); // Empty map
+
+        merge_map(&mut map1, &map2);
+
+        let mut expected = HashMap::new();
+        expected.insert('a', 1);
+        expected.insert('b', 2);
+
+        assert_eq!(map1, expected); // map1 should remain unchanged
+    }
+
+    #[test]
+    fn test_merge_map_with_empty_map1() {
+        let mut map1 = HashMap::new(); // Empty map
+        let mut map2 = HashMap::new();
+        map2.insert('a', 1);
+        map2.insert('b', 2);
+
+        merge_map(&mut map1, &map2);
+
+        let mut expected = HashMap::new();
+        expected.insert('a', 1);
+        expected.insert('b', 2);
+
+        assert_eq!(map1, expected); // map1 should be updated with the contents of map2
+    }
+
+    #[test]
+    fn test_merge_map_with_both_empty() {
+        let mut map1 = HashMap::new(); // Empty map
+        let map2 = HashMap::new(); // Empty map
+
+        merge_map(&mut map1, &map2);
+
+        let expected: HashMap<char, u32> = HashMap::new();
+        assert_eq!(map1, expected); // Both maps are empty, map1 should remain empty
+    }
 }
