@@ -2,10 +2,12 @@
 
 use std::collections::HashSet;
 use std::io;
+use std::ops::AddAssign;
 use std::vec;
 
 mod poly_over_gf;
 use poly_over_gf::determinant;
+use poly_over_gf::inverse_matrix;
 use poly_over_gf::Element;
 use poly_over_gf::FiniteField;
 use poly_over_gf::Polynomial;
@@ -85,10 +87,24 @@ fn main() {
 
         // let's find conjugates
 
+        // User Defined Params
+
+        let m_pow = 4;
+        let n = 2_i32.pow(m_pow) - 1;
+
+        // Enter the err correcting capacity
         let t: i32 = 3; // err correcting capability
         let end = 2 * t - 1;
 
         println!("Err Correcting Capability = {}", t);
+
+        let k = 0;
+        let d = 2 * t - 1;
+        println!("Enter params m = ");
+        println!(
+            "You have chosen Binary BCH code with n = {}, k = {}, t = {}, d = {}",
+            n, k, t, d
+        );
 
         // initialize the min. poly 1
 
@@ -170,37 +186,67 @@ fn main() {
         //      - Block message into k bits chunks
         //      - Optional : File input
 
-        // demo message
-        let messg: Vec<Element> = vec![gf16.create_element(1); 5];
+        let two = gf16.create_element(2);
+        let three = gf16.create_element(3);
+        let four = gf16.create_element(4);
+        let five = gf16.create_element(5);
 
-        let m = Polynomial::new(messg, &gf16);
 
-        println!("Message : {}", m.to_str());
+        // (15,5) k = 5
+        let msg_vec = vec![one.clone(),two.clone(),three.clone(),four.clone(),five.clone()];
+        let msg_poly = Polynomial::new(msg_vec, &gf16);
+       
+        println!("Message : {}", msg_poly.to_str());
 
-        let codeword = g.multiply(&m);
+        let codeword = g.multiply(&msg_poly);
 
         println!("Codeword Generated, C = {}", codeword.to_str());
 
         // Add err
 
         let mut errv: Vec<Element> = vec![gf16.create_element(0); 5];
-        errv[0] = errv[0].add(&one);
+        // errv[2] = errv[2].add(&gf16.create_element(9));
+
         // errv[2] = errv[2].add(&one);
         errv.reverse();
 
         let e = Polynomial::new(errv, &gf16);
-        // let recv = codeword.add(&e);
-        let recv = Polynomial::new(
-            vec![
-                one.clone(),
-                zero.clone(),
-                one.clone(),
-                zero.clone(),
-                zero.clone(),
-                zero.clone(),
-            ],
-            &gf16,
-        );
+
+        // Add sythetic error
+        let mut recv = codeword.clone();
+        recv.add_assign(&e);
+
+
+        // Example 1
+        // let recv = Polynomial::new(
+        //     vec![
+        //         one.clone(),
+        //         one.clone(),
+        //         zero.clone(),
+        //         one.clone(),
+        //         one.clone(),
+        //         one.clone(),
+        //         one.clone(),
+        //         zero.clone(),
+        //         one.clone(),
+        //         one.clone(),
+        //     ],
+        //     &gf16,
+        // );
+
+        // Example 2
+        // let mut recv = Polynomial::new(
+        //     vec![
+        //         one.clone(),
+        //         zero.clone(),
+        //         one.clone(),
+        //         zero.clone(),
+        //         zero.clone(),
+        //         zero.clone(),
+        //     ],
+        //     &gf16,
+        // );
+
 
         println!("Err Induced: {}", e.to_str());
         println!("Received Codeword: {}", recv.to_str());
@@ -228,97 +274,89 @@ fn main() {
 
         let mut l: usize = t as usize; // Assume no. of errors
 
-        // Construct M matrix with syndromes s
+        let mut inverse_m = vec![vec![zero.clone(); l as usize]; l as usize];
 
-        let mut mat_m = vec![vec![&zero; l as usize]; l as usize];
-        println!("Constructing syndrome matrix, M: ");
+        // find the first non-zero det
 
-        for i in 0..l {
-            for j in 0..l {
-                // print!("{}\t",(i+j));
-                mat_m[i][j] = &s[i + j];
-                print!("{}\t\t", mat_m[i][j].to_poly_str());
+        loop {
+            // Construct M matrix with syndromes s
+
+            let mut mat_m = vec![vec![&zero; l as usize]; l as usize];
+            println!("Constructing syndrome matrix, M: ");
+
+            for i in 0..l {
+                for j in 0..l {
+                    // print!("{}\t",(i+j));
+                    mat_m[i][j] = &s[i + j];
+                    print!("{}\t\t", mat_m[i][j].to_poly_str());
+                }
+                println!();
             }
-            println!();
-        }
 
-        // det(M)
+            // det(M)
 
-        let det = determinant(mat_m, l, &gf16);
+            let det = determinant(mat_m.clone(), l, &gf16);
 
-        println!("Det(M[{}x{}]) = {}", l, l, det.to_poly_str());
+            println!("Det(M[{}x{}]) = {}", l, l, det.to_poly_str());
 
-        if det == zero {
-            l -= 1;
-        }
+            if l == 1 && det == zero
+                    {
+                        println!("No error found");
+                        break;
+                    }
 
-        let mut mat_m = vec![vec![&zero; l as usize]; l as usize];
-        println!("Constructing syndrome matrix, M: ");
-
-        for i in 0..l {
-            for j in 0..l {
-                // print!("{}\t",(i+j));
-                mat_m[i][j] = &s[i + j];
-                print!("{}\t\t", mat_m[i][j].to_poly_str());
+            // No l errors check for l-1 errors
+            if det == zero {
+                l -= 1;
+                // check for next iteration
+                continue;
             }
-            println!();
-        }
+            // Non zero determinant so error found
+            else {
+                println!("Inverse of M: ");
 
-        // det(M)
+                // Unwrap the inverse
+                inverse_m = inverse_matrix(mat_m.clone()).unwrap();
 
-        let det = determinant(mat_m.clone(), l, &gf16);
+                for i in 0..l {
+                    for j in 0..l {
+                        print!("{}\t\t", inverse_m[i][j].to_poly_str());
+                    }
+                    println!();
+                }
 
-        println!("Det(M[{}x{}]) = {}", l, l, det.to_poly_str());
-
-        // inverse m
-
-        println!("Inverse of M : ");
-
-        let temp = mat_m[0][0].clone();
-        mat_m[0][0] = mat_m[1][1];
-
-        mat_m[1][1] = &temp;
-
-
-        for i in 0..l {
-            for j in 0..l {
-                print!("{}\t\t", mat_m[i][j].to_poly_str());
+                // Since the no. of errors found
+                break;
             }
-            println!();
         }
+
 
         // construct S = [s_l+1 s_l+2 s_l+3 ... s_2l]^T
 
-        let mut s1 = vec![&zero;2*l];
+        let mut s1 = vec![&zero; 2 * l];
 
         print!("S : ");
 
-        for i in 0..l{
-            s1[i] = &s[l+i];
-            print!("{}\t",s1[i].to_poly_str());
+        for i in 0..l {
+            s1[i] = &s[l + i];
+            print!("{}\t", s1[i].to_poly_str());
         }
 
         println!();
-        
-        
-
-
-
 
         // get lambda as coeff of err locator function
 
-
-        let mut lambda = vec![zero.clone();l];
+        let mut lambda = vec![zero.clone(); l];
 
         // Multiply M_inv * S
 
         println!("Lambda Values: ");
 
-        for i in 0..l{
-            for j in 0..l{
-                lambda[i] = lambda[i].add(&mat_m[i][j].multiply(s1[j]));
+        for i in 0..l {
+            for j in 0..l {
+                lambda[i] = lambda[i].add(&inverse_m[i][j].multiply(s1[j]));
             }
-            println!("lambda{} = {}",l-i,lambda[i].to_poly_str());
+            println!("lambda{} = {}", l - i, lambda[i].to_poly_str());
             // Note indexing of Lambda -> [l,l-1 ... 1]
         }
 
@@ -326,12 +364,11 @@ fn main() {
 
         // Construct Err locator function
 
-        lambda.push(one.clone());   // add one as const term coeff.
+        lambda.push(one.clone()); // add one as const term coeff.
 
         let mut lambda_poly = Polynomial::new(lambda, &gf16);
 
-        println!("Lambda(x) = {}",lambda_poly.to_str());
-
+        println!("Lambda(x) = {}", lambda_poly.to_str());
 
         // Find roots of err locator function
 
@@ -340,16 +377,13 @@ fn main() {
         // TODO - Note range and write func to generate all field elements
 
         let mut roots: Vec<Element> = Vec::new();
-        for i in 0..15
-        {
+        for i in 0..n {
             let mut point = gf16.create_element(1 << i);
             let mut val = lambda_poly.evaluate(&point);
-            
 
-            if val == zero{
-                println!("Root found : {}",point.to_poly_str());
+            if val == zero {
+                println!("Root found : {}", point.to_poly_str());
                 roots.push(point);
-
             }
         }
 
@@ -357,38 +391,120 @@ fn main() {
 
         // Invert the roots to find the err location number
         print!("Err Location = ");
-        for root in roots{
 
-            let mut term = root.inverse();
-            print!("{}, ",term.0.to_poly_str());
+        let mut x_mat = vec![vec![zero.clone(); l as usize]; l as usize];
+
+        // let mut err_loc_arr: Vec<Element> = Vec::new();
+
+        // Construct the error location matrix
+        for (i, root) in roots.iter().enumerate() {
+            let err_loc = root.inverse().0;
+            print!("{}, ", err_loc.to_poly_str());
+            // err_loc_arr.push(err_loc.clone());
 
             // term.1 : all power of the inverse element
-            // use this to convert a^i => x^i e.g. a^3 = x^3
-
-            let mut err = Polynomial::new(vec![zero.clone();term.1+1], &gf16);
-            err.coefficients[term.1] = one.clone();
-
-
-            e.add_assign(&err);
-
+            for j in 0..l {
+                x_mat[j][i] = err_loc.clone().power(j+1);
+            }
         }
+        
         println!();
 
-        // Construct the err poly\
 
-        println!("Err Poly : {}",e.to_str());
 
+        println!("the X matrix");
+
+        for i in 0..l {
+            for j in 0..l {
+                print!("{}\t\t", x_mat[i][j].to_poly_str());
+            }
+            println!();
+        }
+
+
+        // // Inline conversion to Vec<Vec<&Element>> using iterators
+        let x_matrix: Vec<Vec<&Element>> = x_mat
+            .iter() // Iterate over the rows
+            .map(|row| row.iter().collect()) // Iterate over the elements in each row and collect references
+            .collect(); // Collect the rows of references into a new matrix
+
+        let inverse_x = inverse_matrix(x_matrix).unwrap_or(vec![vec![zero.clone()]]);
+
+        println!("Inverse of X: ");
+
+        for i in 0..l {
+            for j in 0..l {
+                print!("{}\t\t", inverse_x[i][j].to_poly_str());
+            }
+            println!();
+        }
+
+        // Finding the error magnitude
+
+        // Init col vec[l x 1] for err mag
+        let mut y : Vec<Element> = vec![zero.clone();l];
+
+        // X_inv x S{lx1}
+
+        for i in 0..l
+        {
+            let mut term = gf16.create_element(0);
+            for j in 0..l{
+                let prod = inverse_x[i][j].multiply(&s[j]);
+                term = term.add(&prod);
+            }
+            
+            y[i] = term.clone();
+        }
+
+        println!("Print the err magnitude vector");
+
+        
+            for j in 0..l {
+                println!("{}\t\t", y[j].to_poly_str());
+            }
+            println!();
+        
+
+        // Construct the err poly
+
+        for (i, root) in roots.iter().enumerate() {
+            let (err_loc, inv_pw) = root.inverse();  
+            let mut err = Polynomial::new(vec![zero.clone(); inv_pw + 1], &gf16);
+
+            // This converts err_loc into a poly
+            // e.g if err_loc = a^4 => err = x^4
+
+            err.coefficients[inv_pw] = one.multiply(&y[i]);
+
+            e.add_assign(&err);
+        }
+
+        println!("Err Poly : {}", e.to_str());
+        println!("Raw Recv : {}",recv.to_str());
+
+        let mut cw = Polynomial::new(vec![zero.clone();15], &gf16);
+        cw.add_assign(&recv);
+        cw.add_assign(&e);
         println!("Corrected Codeword: ");
-        let cw = recv.add(&e);
-        println!("c(x) = {}",cw.to_str());
+        
+        println!("c(x) = {}", cw.to_str());
 
+        // Verification of the corrected codeword
 
-      
+        for j in 0..2 * t {
+            let point = gf16.create_element(1 << (j + 1));
 
-        // Add error locator poly with received codeword
+            s[j as usize] = cw.evaluate(&point);
 
-
-
+            println!(
+                "S{} = r({})\t= {}",
+                j + 1,
+                point.to_poly_str(),
+                s[j as usize].to_poly_str()
+            );
+        }
+        
 
         // TODO - implement BCH code
     }
