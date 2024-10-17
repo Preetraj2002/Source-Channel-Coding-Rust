@@ -365,6 +365,79 @@ impl<'gf> Polynomial<'gf> {
     }
 }
 
+// Function to find the inverse of a matrix (Vec<Vec<&Element>>)
+pub fn inverse_matrix(matrix: Vec<Vec<&Element>>) -> Option<Vec<Vec<Element>>> {
+    let n = matrix.len();
+    
+    // Augment the matrix with the identity matrix
+    let mut augmented_matrix: Vec<Vec<Element>> = vec![];
+    
+    for i in 0..n {
+        let mut row = vec![];
+        for j in 0..n {
+            row.push(matrix[i][j].clone()); // Original matrix element
+        }
+        // Append identity matrix to the row
+        for j in 0..n {
+            if i == j {
+                row.push(matrix[i][0].field.create_element(1)); // Add 1 for the diagonal
+            } else {
+                row.push(matrix[i][0].field.create_element(0)); // Add 0 otherwise
+            }
+        }
+        augmented_matrix.push(row);
+    }
+    
+    // Apply Gaussian elimination to reduce the left part to the identity matrix
+    for i in 0..n {
+        // Ensure the pivot is not zero by swapping with another row
+        if augmented_matrix[i][i].value == 0 {
+            let mut swap_row = None;
+            for j in (i + 1)..n {
+                if augmented_matrix[j][i].value != 0 {
+                    swap_row = Some(j);
+                    break;
+                }
+            }
+            if let Some(row_to_swap) = swap_row {
+                augmented_matrix.swap(i, row_to_swap);
+            } else {
+                return None; // No pivot found, singular matrix
+            }
+        }
+
+        // Normalize the row by the pivot element
+        let pivot = augmented_matrix[i][i].clone();
+
+        // Element.inverse() returns (Element,pw)
+        let pivot_inv = pivot.inverse().0;
+
+        for j in 0..(2 * n) {
+            augmented_matrix[i][j] = augmented_matrix[i][j].multiply(&pivot_inv);
+        }
+
+        // Eliminate other rows
+        for j in 0..n {
+            if i != j {
+                let factor = augmented_matrix[j][i].clone();
+                for k in 0..(2 * n) {
+                    let term = augmented_matrix[i][k].multiply(&factor);
+                    augmented_matrix[j][k] = augmented_matrix[j][k].add(&term);
+                }
+            }
+        }
+    }
+
+    // Extract the right part as the inverse matrix
+    let mut inverse_matrix = vec![];
+    for i in 0..n {
+        inverse_matrix.push(augmented_matrix[i][n..].to_vec());
+    }
+
+    Some(inverse_matrix)
+}
+
+
 
 fn main() {
     // Define GF(2^4)
