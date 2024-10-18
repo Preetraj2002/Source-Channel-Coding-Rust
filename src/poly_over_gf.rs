@@ -1,6 +1,6 @@
 // G(2^4) => irr poly = 10011 or x^4 + x + 1
 
-use std::{clone, fmt::format, fs::create_dir, iter::Enumerate};
+use std::{clone, collections::HashMap, fmt::format, fs::create_dir, iter::Enumerate};
 
 // TODO - Hard-code all irr for different fields
 
@@ -17,10 +17,22 @@ fn most_significant_non_zero_bit(byte: u32) -> u32 {
     return (capacity - 1) - leading_zeros as u32;
 }
 
+pub fn create_lookup_table() -> (HashMap<char, usize>, HashMap<usize, char>) {
+    let mut char_to_num = HashMap::new();
+    let mut num_to_char = HashMap::new();
+
+    for (i, c) in ('a'..='z').enumerate() {
+        char_to_num.insert(c, i + 1); // 'a' -> 1, 'b' -> 2, etc.
+        num_to_char.insert(i + 1, c); // 1 -> 'a', 2 -> 'b', etc.
+    }
+
+    (char_to_num, num_to_char)
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FiniteField {
-    pub size: u32,                // Size of the field (e.g., 2^n)
-    pub characteristic: u32,      // Characteristic of the field (e.g., 2 for GF(2^n))
+    pub size: u32,                 // Size of the field (e.g., 2^n)
+    pub characteristic: u32,       // Characteristic of the field (e.g., 2 for GF(2^n))
     pub primitive_polynomial: u32, // Primitive polynomial for modular reduction
 }
 
@@ -45,7 +57,7 @@ impl FiniteField {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Element {
-    pub value: u32,          // Binary representation of the field element (for GF(2^n))
+    pub value: u32,         // Binary representation of the field element (for GF(2^n))
     pub field: FiniteField, // The field to which this element belongs
 }
 
@@ -107,12 +119,12 @@ impl Element {
             }
         }
 
-        
         // return the reduced res
         return Element {
             value: result,
             field: self.field.clone(),
-        }.reduce()
+        }
+        .reduce();
     }
 
     pub fn power(&self, exp: usize) -> Element {
@@ -120,7 +132,7 @@ impl Element {
         let mut pow = exp;
         let mut base = self.clone();
 
-        if pow == 0{
+        if pow == 0 {
             res = self.field.create_element(1);
             return res;
         }
@@ -143,20 +155,18 @@ impl Element {
         let mut inv = zero.clone();
         let mut pw = 0;
 
-
-        for i in 0..self.field.size - 1{
-
+        for i in 0..self.field.size - 1 {
             inv = self.field.create_element(1 << i);
             pw = i as usize;
 
-            if self.multiply(&inv) == one.clone(){
+            if self.multiply(&inv) == one.clone() {
                 // println!("{}",inv.to_poly_str());
-                return (inv,pw);
+                return (inv, pw);
             }
         }
 
         // if self == &zero
-        return (inv,pw);
+        return (inv, pw);
     }
 
     // TODO - write divide function
@@ -168,7 +178,6 @@ impl Element {
         // no. of bits in a vars
 
         let capacity = 32;
-
 
         for i in (0..capacity).rev() {
             if (self.value & (1 << i)) != 0 {
@@ -237,10 +246,7 @@ pub fn determinant(matrix: Vec<Vec<&Element>>, n: usize, field: &FiniteField) ->
 
         // print!("{} + ",cofactor.to_poly_str());
 
-
         det = det.add(cofactor);
-
-        
     }
     // println!("val {} at n ={} ",det.to_poly_str(),n);
     return det;
@@ -268,7 +274,6 @@ impl<'gf> Polynomial<'gf> {
         let mut result = element.field.create_element(0); // Start with 0 in the field
 
         for (i, coeff) in self.coefficients.iter().enumerate() {
-
             let term = coeff.multiply(&element.power(i));
             // println!("term : {}*({})^{} =  {}",coeff.to_poly_str(),element.to_poly_str(),i, term.to_poly_str());
 
@@ -306,20 +311,91 @@ impl<'gf> Polynomial<'gf> {
 
     pub fn add_assign(&mut self, other: &Polynomial<'gf>) {
         let max_len = self.coefficients.len().max(other.coefficients.len());
-        
+
         // Resize the coefficients vector if necessary
         if self.coefficients.len() < max_len {
-            self.coefficients.resize(max_len, self.field.create_element(0));
+            self.coefficients
+                .resize(max_len, self.field.create_element(0));
         }
 
         for i in 0..max_len {
-            let a = self.coefficients.get(i).cloned().unwrap_or_else(|| element_zero(&self.field));
-            let b = other.coefficients.get(i).cloned().unwrap_or_else(|| element_zero(&other.field));
+            let a = self
+                .coefficients
+                .get(i)
+                .cloned()
+                .unwrap_or_else(|| element_zero(&self.field));
+            let b = other
+                .coefficients
+                .get(i)
+                .cloned()
+                .unwrap_or_else(|| element_zero(&other.field));
 
             self.coefficients[i] = a.add(&b);
             // Optionally print out the result for debugging
             // println!("After adding, res x^{} = {:?}", i, &self.coefficients[i]);
         }
+    }
+
+    // Returns (quotient, remainder) as a tuple
+    pub fn divide(&self, other: &Polynomial<'gf>) -> (Polynomial<'gf>, Polynomial<'gf>) {
+        let zero_poly = Polynomial::new(vec![self.field.create_element(0)], &self.field);
+
+        // If the degree of the divisor is zero, return zero polynomial for both quotient and remainder
+        if other.coefficients.is_empty() || other.coefficients.iter().all(|c| c.value == 0) {
+            return (zero_poly.clone(), zero_poly.clone());
+        }
+
+        let mut remainder = self.clone(); // Start with the dividend (self)
+        let mut quotient_coeffs: Vec<Element> = vec![]; // Store coefficients for the quotient
+
+        while remainder.coefficients.len() >= other.coefficients.len()
+        {
+            // Leading terms for both remainder and divisor
+            let lead_term_rem = remainder.coefficients.last().unwrap().clone();
+            let lead_term_div = other.coefficients.last().unwrap().clone();
+
+            // Check if the remainder leading term is zero
+            if lead_term_rem.value == 0 {
+                // Skip this iteration, as the leading term of the remainder is zero
+                remainder.coefficients.pop(); // Remove the leading zero term
+                continue;
+            }
+
+            // Calculate the quotient for the leading terms
+            let quotient_term = lead_term_rem.multiply(&lead_term_div.inverse().0); // Element division
+
+            // Degree of the remainder minus degree of the divisor gives the power of the quotient term
+            let degree_diff = remainder.coefficients.len() - other.coefficients.len();
+
+            // Prepare the term to subtract from the remainder
+            let mut term = vec![self.field.create_element(0); degree_diff];
+            term.push(quotient_term.clone());
+            term.reverse();
+
+            // println!("{:?}",term.reverse());
+
+            let term_poly = Polynomial::new(term, &self.field);
+
+            // Subtract the divisor multiplied by the quotient term from the remainder
+            let subtract_poly = other.multiply(&term_poly);
+
+            remainder.add_assign(&subtract_poly);
+
+            // Add the quotient term to the quotient
+            quotient_coeffs.insert(0, quotient_term);
+        }
+
+        // Remove leading zeroes in the remainder
+        while remainder.coefficients.len() > 1
+            && remainder.coefficients.last() == Some(&self.field.create_element(0))
+        {
+            remainder.coefficients.pop();
+        }
+
+        let quotient = Polynomial::new(quotient_coeffs, &self.field);
+
+        // Return the quotient and remainder
+        return (quotient, remainder);
     }
 
     pub fn to_str(&self) -> String {
@@ -333,7 +409,6 @@ impl<'gf> Polynomial<'gf> {
                     str.push_str(&ele.to_poly_str());
                 } else if i == 1 {
                     str.push_str(&format!("({})x", &ele.to_poly_str()));
-
                 } else {
                     str.push_str(&format!("({})x^{}", &ele.to_poly_str(), i));
                 }
@@ -356,22 +431,30 @@ impl<'gf> Polynomial<'gf> {
         // Perform polynomial multiplication
         for (i, coeff_a) in self.coefficients.iter().enumerate() {
             for (j, coeff_b) in other.coefficients.iter().enumerate() {
-               let product = coeff_a.multiply(coeff_b);
+                let product = coeff_a.multiply(coeff_b);
                 result_coeffs[i + j] = result_coeffs[i + j].add(&product);
-            }   
+            }
         }
         result_coeffs.reverse();
         Polynomial::new(result_coeffs, self.field)
+    }
+
+
+    pub fn coeff_to_bin_vec(&self) -> Vec<usize> {
+        self.coefficients
+            .iter()
+            .map(|coeff| coeff.value as usize) // Convert each value to binary
+            .collect()
     }
 }
 
 // Function to find the inverse of a matrix (Vec<Vec<&Element>>)
 pub fn inverse_matrix(matrix: Vec<Vec<&Element>>) -> Option<Vec<Vec<Element>>> {
     let n = matrix.len();
-    
+
     // Augment the matrix with the identity matrix
     let mut augmented_matrix: Vec<Vec<Element>> = vec![];
-    
+
     for i in 0..n {
         let mut row = vec![];
         for j in 0..n {
@@ -387,7 +470,7 @@ pub fn inverse_matrix(matrix: Vec<Vec<&Element>>) -> Option<Vec<Vec<Element>>> {
         }
         augmented_matrix.push(row);
     }
-    
+
     // Apply Gaussian elimination to reduce the left part to the identity matrix
     for i in 0..n {
         // Ensure the pivot is not zero by swapping with another row
@@ -436,8 +519,6 @@ pub fn inverse_matrix(matrix: Vec<Vec<&Element>>) -> Option<Vec<Vec<Element>>> {
 
     Some(inverse_matrix)
 }
-
-
 
 fn main() {
     // Define GF(2^4)
