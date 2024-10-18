@@ -6,6 +6,7 @@ use std::ops::AddAssign;
 use std::vec;
 
 mod poly_over_gf;
+use poly_over_gf::create_lookup_table;
 use poly_over_gf::determinant;
 use poly_over_gf::inverse_matrix;
 use poly_over_gf::Element;
@@ -191,11 +192,24 @@ fn main() {
         let four = gf16.create_element(4);
         let five = gf16.create_element(5);
 
+        let (char_to_num, num_to_char) = create_lookup_table();
+
+        let text = "hello";
+        let numbers: Vec<usize> = text.chars()
+        .filter_map(|c| char_to_num.get(&c).cloned())
+        .collect();
+
+        // Convert the numbers into finite field elements using gf16.create_element()
+        let msg_vec: Vec<Element> = numbers.iter()
+        .map(|&n| gf16.create_element(n as u32))  // Convert each number into a finite field element
+        .collect();
+
 
         // (15,5) k = 5
-        let msg_vec = vec![one.clone(),two.clone(),three.clone(),four.clone(),five.clone()];
+        // let msg_vec = vec![one.clone(),two.clone(),three.clone(),four.clone(),five.clone()];
         let msg_poly = Polynomial::new(msg_vec, &gf16);
        
+        println!("Text : {}", text);
         println!("Message : {}", msg_poly.to_str());
 
         let codeword = g.multiply(&msg_poly);
@@ -505,6 +519,25 @@ fn main() {
             );
         }
         
+        // let mut orgin_mssg = zero_poly.clone();
+        // let mut remain = zero_poly.clone();
+
+        let (orgin_mssg,remain) = cw.divide(&g);
+
+        println!("Original mssg poly = {}",orgin_mssg.to_str());
+
+        let orgin_mssg_vec = orgin_mssg.coeff_to_bin_vec();
+
+        println!("Original mssg binary vec = {:?}", orgin_mssg_vec);
+
+        let message_text: String = orgin_mssg_vec.iter()
+        .filter_map(|&n| num_to_char.get(&n).cloned())
+        .collect();
+
+        println!("Original message text: {}",message_text);
+
+
+
 
         // TODO - implement BCH code
     }
