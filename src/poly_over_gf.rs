@@ -348,8 +348,7 @@ impl<'gf> Polynomial<'gf> {
         let mut remainder = self.clone(); // Start with the dividend (self)
         let mut quotient_coeffs: Vec<Element> = vec![]; // Store coefficients for the quotient
 
-        while remainder.coefficients.len() >= other.coefficients.len()
-        {
+        while remainder.coefficients.len() >= other.coefficients.len() {
             // Leading terms for both remainder and divisor
             let lead_term_rem = remainder.coefficients.last().unwrap().clone();
             let lead_term_div = other.coefficients.last().unwrap().clone();
@@ -438,7 +437,6 @@ impl<'gf> Polynomial<'gf> {
         result_coeffs.reverse();
         Polynomial::new(result_coeffs, self.field)
     }
-
 
     pub fn coeff_to_bin_vec(&self) -> Vec<usize> {
         self.coefficients
