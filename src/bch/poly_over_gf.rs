@@ -1,6 +1,8 @@
 // G(2^4) => irr poly = 10011 or x^4 + x + 1
 // G(2^5) => irr poly = 100101 or x^5 + x^2 + 1
 
+#![allow(dead_code)]
+
 // TODO - Hard-code all irr for different fields
 
 pub static IRR_POLY: u64 = 0b0010_0101;
@@ -188,7 +190,7 @@ impl Element {
     }
 
     pub fn bin_str(&self) -> String {
-        return format!("{:04b}", self.value);
+        return format!("{:08b}", self.value);
     }
 
     pub fn decimal_str(&self) -> String {

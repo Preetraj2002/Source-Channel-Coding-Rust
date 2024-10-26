@@ -1,8 +1,11 @@
 use std::collections::HashMap;
-use std::collections::HashSet;
 use std::io;
 use std::vec;
 
+// Using huffmann lib
+mod huffmann;
+
+use bch::construct_g::find_conjugates;
 use huffmann::decoder::decompress;
 use huffmann::encoder::compress;
 use huffmann::encoder::encoded_input;
@@ -11,8 +14,12 @@ use huffmann::tree::build_huffmann_tree;
 use huffmann::tree::generate_huffmann_codes;
 use huffmann::utils::get_file_size;
 
-mod encoding_utils;
-mod poly_over_gf;
+// Using bch lib
+mod bch;
+use bch::construct_g;
+use bch::encoding_utils;
+use bch::poly_over_gf;
+use construct_g::find_generator;
 use encoding_utils::create_lookup_table;
 use encoding_utils::divide_into_chunks;
 use poly_over_gf::determinant;
@@ -22,12 +29,7 @@ use poly_over_gf::FiniteField;
 use poly_over_gf::Polynomial;
 use poly_over_gf::IRR_POLY;
 
-mod huffmann;
-
 fn main() {
-    // TODO - convert mssg into binary stream
-    // TODO - break stream into block of size n
-
     println!("Enter your Encoding Choice: ");
     println!("[1] Source Coding - Huffman code");
     println!("[2] Channel Coding - Binary BCH code");
@@ -43,7 +45,6 @@ fn main() {
 
     if choice == 1 {
         println!("Source Coding");
-        // TODO - implement Huffman code
         println!("Do you want to compress or decompress: ");
         println!("1. Compress a file");
         println!("2. Decompress a file");
@@ -124,6 +125,9 @@ fn main() {
             println!("Invalid choice");
         }
     } else {
+        println!("Channel (Error Correcting) Coding: ");
+        println!();
+
         println!("Enter your message to be encoded: ");
         let mut mssg = String::new();
         io::stdin()
@@ -132,23 +136,15 @@ fn main() {
         mssg = mssg.trim().to_string();
 
         println!("Message is: {}", mssg);
-
-        for c in mssg.chars() {
-            println!("{}", c);
-        }
         let count = mssg.len();
         println!("Total Chars: {}", count);
-        println!("Channel (Error Correcting) Coding: ");
-        // Define the value 'a' in GF(2^4)
 
         // let gf = FiniteField::new(2, 4, IRR_POLY); // x^4 + x + 1
-        let gf = FiniteField::new(2, 5, IRR_POLY); // x^5 + x^2 + 1
+        let gf = FiniteField::new(2, 5, IRR_POLY); // x^5 + x^2 + 1     // TODO - genelarise GF
 
         let zero = gf.create_element(0);
         let one = gf.create_element(1);
         // let alpha = gf.create_element(2);
-
-        // let's find conjugates
 
         // User Defined Params
 
@@ -160,55 +156,21 @@ fn main() {
         println!("Err Correcting Capability = {}", t);
 
         let d = 2 * t - 1;
-        println!("Enter params m = ");
-
-        // initialize the min. poly 1
 
         // TODO - Generating individual min. poly and then find generator poly using LCM
 
         let zero_poly = Polynomial::new(vec![zero.clone()], &gf);
-        let one_poly = Polynomial::new(vec![one.clone()], &gf);
+        // let one_poly = Polynomial::new(vec![one.clone()], &gf);
 
-        // Initialize vec of all minimal polymonial
-        let mut phi: Vec<Polynomial<'_>> = vec![one_poly; t as usize];
+        // find all the conjugates
 
-        for i in 0..t {
-            println!("Phi_{}(x) = {:?}", 2 * i + 1, phi[i as usize].to_str());
-        }
+        let (conj_idx, phi) = find_conjugates(t, &gf);
+        println!();
+        println!("all the conjugates: {:?}", conj_idx);
 
-        // Note all the conjugates of the min. poly in a set
-
-        let mut conj_idx: HashSet<u32> = HashSet::new();
+        // construct all the minimal polynomials
 
         for i in 0..t {
-            let mut pw: u32 = (2 * i + 1) as u32;
-
-            println!(
-                "\nConjugates of {} = {}",
-                gf.create_element(1 << pw).to_poly_str(),
-                gf.create_element(1 << pw).reduce().to_poly_str()
-            );
-
-            loop {
-                pw *= 2;
-                pw = pw % 31; // TODO - generalise the power
-                if conj_idx.contains(&pw) || pw == 0 {
-                    // println!("\nElement already contained ! Stop checking for conjugates");
-                    break;
-                }
-                conj_idx.insert(pw);
-                print!(
-                    "{} = {} ,",
-                    gf.create_element(1 << pw).to_poly_str(),
-                    gf.create_element(1 << pw).reduce().to_poly_str()
-                );
-
-                let root = gf.create_element(1 << pw).reduce();
-                let term = Polynomial::new(vec![one.clone(), root], &gf);
-
-                phi[i as usize] = phi[i as usize].multiply(&term);
-            }
-
             println!();
             println!(
                 "\nMinimal Polynomial Phi_{}(x) = {}",
@@ -217,18 +179,10 @@ fn main() {
             );
         }
 
-        println!("all the conjugates: {:?}", conj_idx);
-        println!();
-        println!("Generator Poly: LCM of [phi_1, phi_3, phi_5]");
+        // construct G poly using min. poly
 
-        let mut g = Polynomial::new(vec![one.clone()], &gf);
-
-        for i in &conj_idx {
-            let root = gf.create_element(1 << i);
-            let term = Polynomial::new(vec![one.clone(), root], &gf);
-            // println!("Term: ({})",term.to_str());
-            g = g.multiply(&term);
-        }
+        let g = find_generator(&gf, conj_idx.clone());
+        println!("Generator Poly: LCM of phi_i's");
         println!("g(x) = {}", g.to_str());
         let deg_g = conj_idx.len();
         println!("Deg(g(x)) = {}", deg_g);
@@ -245,11 +199,8 @@ fn main() {
         // Prepare Message - k bits
         // k = n - deg(g(x))
 
-        // TODO - Map user input to GF elements
-        //      - Preprocess - lowercase,whitespace,other symbols
-        //      - Map each char(using ASCII) into a GF
-        //      - Block message into k bits chunks
-        //      - Optional : File input
+  
+        // TODO - Optional : File input
 
         let (char_to_num, num_to_char) = create_lookup_table();
         let mut message_text = String::new();
@@ -268,8 +219,6 @@ fn main() {
                 .map(|&n| gf.create_element(n as u64)) // Convert each number into a finite field element
                 .collect();
 
-            // (15,5) k = 5
-            // let msg_vec = vec![one.clone(),two.clone(),three.clone(),four.clone(),five.clone()];
             let msg_poly = Polynomial::new(msg_vec, &gf);
 
             println!("Text : {}", text);
@@ -282,9 +231,11 @@ fn main() {
             // Add err
 
             let len = codeword.coefficients.len();
-            // Add err
-            let mut errv: Vec<Element> = vec![gf.create_element(0); len];
 
+            // induce err
+
+            let mut errv: Vec<Element> = vec![gf.create_element(0); len];
+            // Putting err at 4 positon 
             errv[0] = errv[0].add(&gf.create_element(9));
             errv[2] = errv[2].add(&gf.create_element(9));
             errv[6] = errv[6].add(&gf.create_element(9));
@@ -556,7 +507,7 @@ fn main() {
 
             let orgin_mssg_vec = orgin_mssg.coeff_to_bin_vec();
 
-            println!("Chunk mssg binary vec = {:?}", orgin_mssg_vec);
+            println!("Chunk mssg number vec = {:?}", orgin_mssg_vec);
 
             let message: String = orgin_mssg_vec
                 .iter()
@@ -569,7 +520,5 @@ fn main() {
         }
 
         println!("Original message text: {}", message_text);
-
-        // TODO - implement BCH code
     }
 }
