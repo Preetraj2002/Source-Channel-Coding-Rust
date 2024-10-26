@@ -1,44 +1,31 @@
 // G(2^4) => irr poly = 10011 or x^4 + x + 1
-
-use std::{clone, collections::HashMap, fmt::format, fs::create_dir, iter::Enumerate};
+// G(2^5) => irr poly = 100101 or x^5 + x^2 + 1
 
 // TODO - Hard-code all irr for different fields
 
-pub static IRR_POLY: u32 = 0b0001_0011;
+pub static IRR_POLY: u64 = 0b0010_0101;
 
-fn most_significant_non_zero_bit(byte: u32) -> u32 {
+fn most_significant_non_zero_bit(byte: u64) -> u64 {
     if byte == 0 {
         return 0; // No non-zero bits if the byte is 0
     }
 
     let leading_zeros = byte.leading_zeros();
     // no. of bits that can be stored
-    let capacity = 32;
-    return (capacity - 1) - leading_zeros as u32;
-}
-
-pub fn create_lookup_table() -> (HashMap<char, usize>, HashMap<usize, char>) {
-    let mut char_to_num = HashMap::new();
-    let mut num_to_char = HashMap::new();
-
-    for (i, c) in ('a'..='z').enumerate() {
-        char_to_num.insert(c, i + 1); // 'a' -> 1, 'b' -> 2, etc.
-        num_to_char.insert(i + 1, c); // 1 -> 'a', 2 -> 'b', etc.
-    }
-
-    (char_to_num, num_to_char)
+    let capacity = 64; // TODO - genelarise the capacity: no. of bits 32, 64, ...
+    return (capacity - 1) - leading_zeros as u64;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FiniteField {
     pub size: u32,                 // Size of the field (e.g., 2^n)
     pub characteristic: u32,       // Characteristic of the field (e.g., 2 for GF(2^n))
-    pub primitive_polynomial: u32, // Primitive polynomial for modular reduction
+    pub primitive_polynomial: u64, // Primitive polynomial for modular reduction
 }
 
 impl FiniteField {
     // Constructor for the FiniteField
-    pub fn new(characteristic: u32, degree: u32, primitive_polynomial: u32) -> FiniteField {
+    pub fn new(characteristic: u32, degree: u32, primitive_polynomial: u64) -> FiniteField {
         FiniteField {
             size: 2_u32.pow(degree),
             characteristic,
@@ -47,7 +34,7 @@ impl FiniteField {
     }
 
     // TODO - Function to create an element in this field
-    pub fn create_element(&self, value: u32) -> Element {
+    pub fn create_element(&self, value: u64) -> Element {
         Element {
             value,
             field: self.clone(),
@@ -57,7 +44,7 @@ impl FiniteField {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Element {
-    pub value: u32,         // Binary representation of the field element (for GF(2^n))
+    pub value: u64,         // Binary representation of the field element (for GF(2^n))
     pub field: FiniteField, // The field to which this element belongs
 }
 
@@ -71,11 +58,12 @@ impl Element {
     }
 
     pub fn reduce(&self) -> Element {
-        let mut res: u32 = self.value;
+        let mut res: u64 = self.value;
 
         // Find the pos of leading term in irr poly
 
-        let len = if let Some(pos) = (0..32).rev().find(|&i| (IRR_POLY >> i) & 1 == 1) {
+        let len = if let Some(pos) = (0..64).rev().find(|&i| (IRR_POLY >> i) & 1 == 1) {
+            // TODO - generalise the size 32,64 ...
             pos
         } else {
             0
@@ -85,7 +73,7 @@ impl Element {
 
         while lead_pos >= len {
             // Calculate the number of left shifts needed
-            let shift: u32 = lead_pos - len;
+            let shift: u64 = lead_pos - len;
 
             // Shift the irreducible polynomial and XOR it with the current result
             res ^= IRR_POLY << shift;
@@ -99,7 +87,7 @@ impl Element {
 
     // Function for field multiplication with reduction
     pub fn multiply(&self, other: &Element) -> Element {
-        let mut result: u32 = 0;
+        let mut result: u64 = 0;
 
         // reduce the input
         let mut a = (self.reduce()).value;
@@ -177,7 +165,7 @@ impl Element {
 
         // no. of bits in a vars
 
-        let capacity = 32;
+        let capacity = 64; // Generalise this 32,64 ...
 
         for i in (0..capacity).rev() {
             if (self.value & (1 << i)) != 0 {
@@ -219,7 +207,7 @@ pub fn determinant(matrix: Vec<Vec<&Element>>, n: usize, field: &FiniteField) ->
     let mut det = zero.clone();
 
     // Base case: single element
-    if (n == 1) {
+    if n == 1 {
         det = matrix[0][0].clone();
         return det;
     }
@@ -242,7 +230,7 @@ pub fn determinant(matrix: Vec<Vec<&Element>>, n: usize, field: &FiniteField) ->
             }
         }
 
-        let mut cofactor = &matrix[0][p].multiply(&determinant(submatrix, n - 1, field));
+        let cofactor = &matrix[0][p].multiply(&determinant(submatrix, n - 1, field));
 
         // print!("{} + ",cofactor.to_poly_str());
 
@@ -516,27 +504,4 @@ pub fn inverse_matrix(matrix: Vec<Vec<&Element>>) -> Option<Vec<Vec<Element>>> {
     }
 
     Some(inverse_matrix)
-}
-
-fn main() {
-    // Define GF(2^4)
-
-    let gf16 = FiniteField::new(2, 4, IRR_POLY); // x^4 + x + 1
-
-    let a = gf16.create_element(5);
-
-    let b = gf16.create_element(0b1100); // Represents x^3 + x^2 (binary 1100)
-
-    println!("{:?}", a.to_poly_str());
-    println!("{:?}", b);
-
-    // Create finite field elements
-    let a = gf16.create_element(0b0010); // Represents 'a' in GF(2^4)
-    let a_squared_plus_one = gf16.create_element(0b0101); // Represents a^2 + 1 which is '5'
-    let one = gf16.create_element(0b0001); // Represents '1'
-
-    // Create two polynomials (5x + 1) and (a^2 + a)x + (a + 1)
-    let poly1 = Polynomial::new(vec![a_squared_plus_one.clone(), one.clone()], &gf16); // 5x + 1
-    let poly2 = Polynomial::new(vec![a.clone(), a_squared_plus_one.clone()], &gf16);
-    // ax + 5
 }
